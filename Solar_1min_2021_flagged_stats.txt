@@ -1,0 +1,10 @@
+
+Some pass/fail stats for Solar_1min_2021: 
+
+Total number of datapoints: 525561 
+Total number of non-eligible datapoints: 303141 
+Total number of tested datapoints: 222420 
+
+Datapoints that fail test 1: 8 
+Datapoints that pass test 1 but fail test 2: 1219 
+Datapoints that pass tests 1 & 2 but fail test 3: 100990

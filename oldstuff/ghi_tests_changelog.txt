@@ -1,0 +1,11 @@
+prepei na mathw git..
+
+
+2022-10-24
+
+ghi_tests_20221024:
+	-Datetime importation to df (where cosZ, Z are caculated) is done from a date_range(..) now (was done from data_file before)
+	 This was done to avoid NaN values for Z during timezone shift, if there where missing datetimes in data_file 
+	-Added some extra commands useful (for me) for testing (finding duplicate values/counts, missing minute/value counts in a day etc.)
+	-Added some to do things 
+
