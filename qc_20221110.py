@@ -156,7 +156,7 @@ df2['Sa'] = 1366 * ( 1 + 0.033 * np.cos( np.deg2rad((360 * df2['Day Count'])/365
 
 df2 = df2.dropna(subset=['DIF', 'GH', 'DN'])  # Deletes NaN/missing values
 
-print('Preparing QC 1, 2 & 3 figures...')
+print('Preparing QC1, QC2 & QC3 figures...')
 
 
 #%% Limit Tests (QC1 & QC2)
@@ -249,7 +249,8 @@ df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['dif_r']>1.05), 'flag'] = 3
 df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['dif_r']>1.1), 'flag'] = 3
 
 
-'''
+print('Preparing QC4 figures...')
+
 #%% Climatological Limit Tests (QC4)
 
 # GH rejection rate visualization
@@ -291,7 +292,7 @@ reject_dif = np.transpose(np.array([j_list, reject_dif]))
 # ta ekana epi 100 ta coefficients giati den evgaza akrh me float values sto
 # for loop, to idio pragma einai praktika kiolas
 # mporei na souloupwthei, kanontas tis kenes listes kena arrays eksarxhs??
-'''
+
 
 print('Plotting the timeseries of the data...')
 
@@ -380,22 +381,6 @@ print('\nSome pass/fail stats for', data_file[:-4] + ':',
 #%% ti menei - sxolia
 
 '''
-na apothikeusw ta irradiance values (kai ta Z??), mazi me ta flags pou
-prokyptoyn apo tous parapanw elegxous (p.x. pass, fail, suspect etc..)
-
-na kanw sort to datetime index to df2 prwta kalou kakou prin ta join
-
-na eksagw statistika gia ta pososta epityxias/apotyxias
-na to kanw ws pososto olwn twn timwn h twn eligible gia kathe test mono??
-tha rwthsw..
-
-mallon na filtrarw apo prin me mask() h where() to closr ws pros to sumw,
-gia ma einai pio euanagnwstos o kwdikas (for Z<93, sumw<50 test not possible)
-apofeugw kai ta inf values (pou ektos twn eligible values exarxhs vevaia)
-kai na kanw  kai to idio gia to diffuse ratio test
-prepei na ginei giati thelw na kanw kai pass/fail pososta, opote kai na
-exw kalytera mono ta katallhla datetime indexes gia auta??
-
 # aplo plotarisma ths zenitheias
 plt.plot(df2['Z'])
 plt.show()
@@ -416,13 +401,6 @@ mallon vlakeies grafw..
 to oti einai estimate paizei kapoio rolo??
 
 ** added 2022/10/20 **
-
-ta NaN sto telos mpainoun logw ths mikrhs anantistoixias??
-an den kanw drop ta duplicate indices, an yparxoun:
-elegxontas to df2.index.duplicated().sum(), exw 5 duplicates,
-sto 15:56-16:00, gia to 2021-4-29
-fainetai na eginan duplicate ta Z, cosZ (??)
-poly akyra mphkan auta.. apo pou?? ti symvainei?? giati??
 
 ta duplicated indexes exoun proelthei kata to join tou Z sto df2
 ta afairw afou kanw ta join
@@ -455,6 +433,7 @@ mhpws na kanw ton ypologismo ths zenitheias gwnias synarthsh? tha einai kai
 pio voliko gia thn enswmatwsh twn timwn ths sto df2..
 
 h DN einai ektimwmenh sta dedomena, den ypokeitai stous alegxous autous
+
 df2['BI'] = df2['DN'] * df2['m0']  # direct horizontal
 df2['ppl_dn'] = df2['Sa']
 df2['ppl_bi'] = df2['Sa'] * df2['m0']
@@ -478,6 +457,7 @@ plt.ylabel('Irradiance [$W/m^2$]')
 plt.show()
 
 ** added 2022-10-30 **
+
 df2.loc[((df2['flag']>-1) & (df2['flag']<1)) & (df2['GH']>df2['erl_gh']), 'flag'] = 2
 df2.loc[(df2['flag']>-1) & (df2['flag']<1) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
 
