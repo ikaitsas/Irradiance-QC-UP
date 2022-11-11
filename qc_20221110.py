@@ -65,10 +65,10 @@ data_file = 'Solar_1min_2021.txt'
 dtr=pd.date_range(start='2021-1-1 00:00:00', end='2022-1-1 1:59:00',
                   freq='min')
 
-print('\nCalculating Z & importing the data...')
-
 
 #%% Zenith Angle Calculation
+
+print('\nCalculating Z & importing the data...')
 
 # create datetime dataframe for specified year
 df=pd.DataFrame(dtr, columns=['Datetime'])
@@ -156,10 +156,10 @@ df2['Sa'] = 1366 * ( 1 + 0.033 * np.cos( np.deg2rad((360 * df2['Day Count'])/365
 
 df2 = df2.dropna(subset=['DIF', 'GH', 'DN'])  # Deletes NaN/missing values
 
-print('Preparing QC1, QC2 & QC3 figures...')
-
 
 #%% Limit Tests (QC1 & QC2)
+
+print('Preparing QC1, QC2 & QC3 figures...')
 
 # PPL tests (QC1)
 df2['ppl_gh'] = df2['Sa'] * 1.5 * df2['m0']**1.2 + 100
@@ -249,9 +249,9 @@ df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['dif_r']>1.05), 'flag'] = 3
 df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['dif_r']>1.1), 'flag'] = 3
 
 
-print('Preparing QC4 figures...')
+#%% Climatological Limits Tests (QC4)
 
-#%% Climatological Limit Tests (QC4)
+print('Preparing QC4 figures...')
 
 # GH rejection rate visualization
 reject_gh=[]
@@ -294,10 +294,9 @@ reject_dif = np.transpose(np.array([j_list, reject_dif]))
 # mporei na souloupwthei, kanontas tis kenes listes kena arrays eksarxhs??
 
 
-print('Plotting the timeseries of the data...')
-
-
 # %% Test Plots
+
+print('Plotting the timeseries of the data...')
 
 # plotting of irradiance data and limits versus time/date
 plt.scatter(df2.index[df2['Z']<80], df2['ppl_gh'][df2['Z']<80],
