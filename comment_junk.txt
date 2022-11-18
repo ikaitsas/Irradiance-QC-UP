@@ -1,0 +1,126 @@
+#%% ti menei - sxolia
+
+'''
+# aplo plotarisma ths zenitheias
+plt.plot(df2['Z'])
+plt.show()
+# aplo plotarima ths apoklishs
+plt.plot(df['delta'])
+plt.show()
+# aplo plotarisma ths diorthwshs xronou
+plt.plot(df['ET'])
+plt.show()
+
+poly o,ti na nai vgainei to ghi/sumw diagramma..
+prepei na kanw kai ta pass/fail pososta na exw plhrh eikona..
+mhpws epeidh einai pio 'mikra' ta DN/BI sta mikra Z apo to 'anamenomeno'..
+san na fainetai na kanoun mia voutia sta mikra Z??
+den paizei na peiraksa kati elpizw..
+p.x. df2['DN'][df2['Z']<kapoia timh].median() goes up for Z going up
+mallon vlakeies grafw..
+to oti einai estimate paizei kapoio rolo??
+
+** added 2022/10/20 **
+
+ta duplicated indexes exoun proelthei kata to join tou Z sto df2
+ta afairw afou kanw ta join
+me ena aplo: df2[~df2.index.duplicated()] sto df2 eimai logika kalymmenos?
+
+to: df2[df2.index.duplicated()] dinei ta duplicate rows
+ta duplicated values kai to count tous vrhka pws dinontai apo:
+count_series=df2.pivot_table(columns=['Column Name'], aggfunc='size')
+count_series[count_series>1]
+me index ths count_series thn sthlh me onoma 'Column Name' (ta values)
+tha yparxei kai pio apodotikos tropos, alla auton skefthka twra..
+
+** added 2022-10-22 **
+
+df2.index.size=525561 (gia 2021), enw exw 525600 lepta se mh disekto xrono
+apo to: df2['Day Count'].value_counts() vlepw apo pou leipoun metrhseis, afou
+exw 24x60=1440 lepta mesa se mia hmera
+p.x. leipoun 39 metrhseis sto 2021 arxeio
+
+to: df2.drop(df2.loc[df2.index > '2021-12-31 21:59:00'].index, inplace=True)
+diwxnei ta teleutaia datetimes pou einai NaN logw eisagwghs ths Z sto df2
+to: df2.dropna() diwxnei ola ta pithana NaN stoixeia se kathe sthlh
+df.isnull().values.any() na tsekarw an egine patata edw..
+
+vriskw ta datetime indices opou exw NaN times ws exhs:
+index = df2['Z'].index[df2['Z'].apply(np.isnan)]
+
+** added 2022-10-29 **
+mhpws na kanw ton ypologismo ths zenitheias gwnias synarthsh? tha einai kai
+pio voliko gia thn enswmatwsh twn timwn ths sto df2..
+
+h DN einai ektimwmenh sta dedomena, den ypokeitai stous alegxous autous
+
+df2['BI'] = df2['DN'] * df2['m0']  # direct horizontal
+df2['ppl_dn'] = df2['Sa']
+df2['ppl_bi'] = df2['Sa'] * df2['m0']
+df2['erl_dn'] = df2['Sa'] * 0.95 * df2['m0']**0.2 + 10
+df2['erl_bi'] = df2['Sa'] * 0.95 * df2['m0']**1.2 + 10
+# DN plots
+plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_dn'][df2['Z']<80], s=0.001, c='r')
+plt.scatter(df2['Z'][df2['Z']<80], df2['erl_dn'][df2['Z']<80], s=0.001)
+plt.scatter(df2['Z'][df2['Z']<80], df2['DN'][df2['Z']<80], s=0.001, c='k')
+plt.title('DNI')
+plt.xlabel('Zenith Angle [°]')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.show()
+# BI plots  # mporei na mhn xreiazontai??
+plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_bi'][df2['Z']<80], s=0.001, c='r')
+plt.scatter(df2['Z'][df2['Z']<80], df2['erl_bi'][df2['Z']<80], s=0.001)
+plt.scatter(df2['Z'][df2['Z']<80], df2['BI'][df2['Z']<80], s=0.001, c='k')
+plt.title('BI (=DNcosZ)')
+plt.xlabel('Zenith Angle [°]')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.show()
+
+** added 2022-10-30 **
+
+df2.loc[((df2['flag']>-1) & (df2['flag']<1)) & (df2['GH']>df2['erl_gh']), 'flag'] = 2
+df2.loc[(df2['flag']>-1) & (df2['flag']<1) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
+
+** added 2022-11-08 **
+
+# diafores vlakeis graphs akolouthoun
+# plotting of GHI and SUMW values
+
+# values in the same graph
+# versus time (the index)
+plt.scatter(df2.index[df2['Z']<80], df2['GH'][df2['Z']<80], s=0.005, c='k')
+plt.scatter(df2.index[df2['Z']<80], df2['sumw'][df2['Z']<80], s=0.005, c='r')
+plt.title('GHI & DNcosZ+DIF')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.legend(['GHI', 'DNcosZ+DIF'], markerscale=100, loc='upper right')
+plt.show()
+# versus the zenith angle
+plt.scatter(df2['Z'][df2['Z']<80], df2['GH'][df2['Z']<80], s=0.002, c='k')
+plt.scatter(df2['Z'][df2['Z']<80], df2['sumw'][df2['Z']<80], s=0.002, c='r')
+plt.title('GHI & DNcosZ+DIF')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.xlabel('Zenith Angle [°]')
+plt.legend(['GHI', 'DNcosZ+DIF'], markerscale=150, loc='upper right')
+plt.show()
+
+# as a difference (GHI-SUMW)
+# versus time (the index)
+plt.scatter(df2.index[df2['Z']<80],
+            (df2['GH'][df2['Z']<80]-df2['sumw'][df2['Z']<80]), s=0.005, c='k')
+plt.hlines(y=0, xmin=df2.index.min(),
+           xmax=df2.index.max(), color='r')
+plt.title('GHI-SUMW')
+plt.ylabel('GHI-SUMW Difference [$W/m^2$]')
+plt.show()
+# versus the zenith angle
+plt.scatter(df2['Z'][df2['Z']<80],
+            (df2['GH'][df2['Z']<80]-df2['sumw'][df2['Z']<80]), s=0.005, c='k')
+plt.hlines(y=0, xmin=10, xmax=85, color='r')
+plt.title('GHI-SUMW')
+plt.ylabel('GHI-SUMW Difference [$W/m^2$]')
+plt.xlabel('Zenith Angle [°]')
+plt.show()
+
+plt.scatter(df2.index[df2['flag']==0], df2['GH'][df2['flag']==0], s=0.005, c='k')
+plt.show()
+'''

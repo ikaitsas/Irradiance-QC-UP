@@ -2,7 +2,7 @@
 """
 Created on Sun Sep 25 15:28:42 2022
 
-This code is an attempt to perform quality control οn a solar irradiance
+This code is an attempt to perform quality control on a solar irradiance
 dataset. The GH & DIFF values are imported in mV. They are converted to W/m2
 in the code. The DNI values do not need conversion. The datetime column of
 df (where the zenith angle is calculated) is in Greek Winter Time (UTC+02)
@@ -23,15 +23,15 @@ The formula for its variation through the year is:
 Sa=Sav[1+0.033cos(360n/365)]   (apo 'Systhmata Hliakhs Energeias')
 
 All negative GH(mV) or DIF(mV) values are set to 0. And rejected (flag==-1).
-Datapoints thathave Z>80 are also flagged with -1.
-Datapoints with flag==-1 do not undergo any testing.
-Negative DN values are not flagged or corrected.
+Datapoints that have Z>80 are also flagged with -1.
+Datapoints with flag==-1 do not undergo any testing, as they are rejected.
+Negative DN values are not flagged or corrected (this might need change).
 It should be noted that DN is estimated from the sunshine duration, not
 measured directly by a pyrheliometer or other device.
 
 The data are flagged as follows:
 flag            meaning
--1              Z>80
+-1              Z>80 and/or original GH or DIF values negative
 0               datapoint passes all QC tests
 1               datapoint fails QC1
 2               datapoint passes QC1 but fails QC2
@@ -39,7 +39,34 @@ flag            meaning
 
 Datapoints that fail QC2 are not tested any further.
 It is not specified if datapoints that fail QC3 fail because of the closure
-ratio test, the diffuse ratio test, or both.
+ratio test, the diffuse ratio test, or both. Might change flag values to
+differentiate betwwen the 2 tests.
+
+The test results and limit values are all stored in dataframe "df2". It is then
+saved in a .csv file, as it is. The file's/dataframe's column names mean:
+UTC: datetime in UTC -- corresponds to a datapoint
+DIF: diffuse horizontal irradiance
+GH: gobal horizontal irradiance
+DN: direct normal irradiance
+flag: the datapoint flag, the meaning of each value is mentioned above
+Z: solar zenith angle
+m0: cosine of Z (cosZ)
+Day Count: Number of the day in the year -- January 1st = 1
+Sa: extraterrestrial irradiance (at the top of the atmosphere). Day Count is
+    used for its calculation through the year
+ppl_gh: physical possible limit for GH
+ppl_dif: physical possible limit for DIF
+erl_gh: extremely rare limit for GH
+erl_dif: extremely rare limit for DIF
+sumw: DN * cosZ + DIF, calculated from the data
+closr: closure ratio -- the closure equation is GH = DNcosZ+DIF, with the ratio
+       here being closr=GH/(DNcosZ+DIF), calculated from the data
+dif_r: diffuse ratio -- DIF/GH
+
+In the .csv file, NaN values are stored as '', which are empty(?) spaces. That
+might be changed to something like 'NaN' or 'null', I'll see. It needs to be
+specified in what string/form Nan values are stored probably, maybe in the
+_stats file?? I ideally want columns to not be objects...
 
 @author: yiann
 """
@@ -249,6 +276,7 @@ df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['dif_r']>1.05), 'flag'] = 3
 df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['dif_r']>1.1), 'flag'] = 3
 
 
+'''
 #%% Climatological Limits Tests (QC4)
 
 print('Preparing QC4 figures...')
@@ -292,6 +320,7 @@ reject_dif = np.transpose(np.array([j_list, reject_dif]))
 # ta ekana epi 100 ta coefficients giati den evgaza akrh me float values sto
 # for loop, to idio pragma einai praktika kiolas
 # mporei na souloupwthei, kanontas tis kenes listes kena arrays eksarxhs??
+'''
 
 
 # %% Test Plots
@@ -337,9 +366,30 @@ plt.show()
 
 #%% Results Exportation
 
-print('\nPlease wait for the exportation of the data & results...')
+# display flagging results in the console
+print('\nSome pass/fail stats for', data_file[:-4] + ':',
+      '\n\nTotal number of datapoints:',
+      str(len(df2.index)),
+      '\nTotal number of non-eligible datapoints:',
+      str(len(df2[df2['flag']==-1].index)),
+      '\nTotal number of tested datapoints:',
+      str(len(df2[df2['flag']>-1].index)),
+      '\n\nDatapoints that fail test 1:',
+      str(len(df2[df2['flag']==1].index)),
+      '\nDatapoints that pass test 1 but fail test 2:',
+      str(len(df2[df2['flag']==2].index)),
+      '\nDatapoints that pass tests 1 & 2 but fail test 3:',
+      str(len(df2[df2['flag']==3].index))
+      )
+
+print('\n\nPlease wait for the exportation of the data & results.',
+      '\nA "Done" message will pop up in the terminal upon completion.',
+      '\nIt might take some time...'
+      )
 
 # export the data to a text file
+df2.index=df2.index.tz_localize(None)
+df2=df2.round(decimals=3)
 df2.to_csv(data_file[:-4]+'_flagged.txt', index_label='UTC')
 
 # export the pass\fail stats about the data to a text file
@@ -359,147 +409,5 @@ with open(data_file[:-4]+'_flagged_stats.txt', 'w') as stats_text:
           str(len(df2[df2['flag']==3].index)),
           file=stats_text
           )
-    
-# display flagging results in the console
-print('\nSome pass/fail stats for', data_file[:-4] + ':',
-      '\n\nTotal number of datapoints:',
-      str(len(df2.index)),
-      '\nTotal number of non-eligible datapoints:',
-      str(len(df2[df2['flag']==-1].index)),
-      '\nTotal number of tested datapoints:',
-      str(len(df2[df2['flag']>-1].index)),
-      '\n\nDatapoints that fail test 1:',
-      str(len(df2[df2['flag']==1].index)),
-      '\nDatapoints that pass test 1 but fail test 2:',
-      str(len(df2[df2['flag']==2].index)),
-      '\nDatapoints that pass tests 1 & 2 but fail test 3:',
-      str(len(df2[df2['flag']==3].index))
-      )
 
-
-#%% ti menei - sxolia
-
-'''
-# aplo plotarisma ths zenitheias
-plt.plot(df2['Z'])
-plt.show()
-# aplo plotarima ths apoklishs
-plt.plot(df['delta'])
-plt.show()
-# aplo plotarisma ths diorthwshs xronou
-plt.plot(df['ET'])
-plt.show()
-
-poly o,ti na nai vgainei to ghi/sumw diagramma..
-prepei na kanw kai ta pass/fail pososta na exw plhrh eikona..
-mhpws epeidh einai pio 'mikra' ta DN/BI sta mikra Z apo to 'anamenomeno'..
-san na fainetai na kanoun mia voutia sta mikra Z??
-den paizei na peiraksa kati elpizw..
-p.x. df2['DN'][df2['Z']<kapoia timh].median() goes up for Z going up
-mallon vlakeies grafw..
-to oti einai estimate paizei kapoio rolo??
-
-** added 2022/10/20 **
-
-ta duplicated indexes exoun proelthei kata to join tou Z sto df2
-ta afairw afou kanw ta join
-me ena aplo: df2[~df2.index.duplicated()] sto df2 eimai logika kalymmenos?
-
-to: df2[df2.index.duplicated()] dinei ta duplicate rows
-ta duplicated values kai to count tous vrhka pws dinontai apo:
-count_series=df2.pivot_table(columns=['Column Name'], aggfunc='size')
-count_series[count_series>1]
-me index ths count_series thn sthlh me onoma 'Column Name' (ta values)
-tha yparxei kai pio apodotikos tropos, alla auton skefthka twra..
-
-** added 2022-10-22 **
-
-df2.index.size=525561 (gia 2021), enw exw 525600 lepta se mh disekto xrono
-apo to: df2['Day Count'].value_counts() vlepw apo pou leipoun metrhseis, afou
-exw 24x60=1440 lepta mesa se mia hmera
-p.x. leipoun 39 metrhseis sto 2021 arxeio
-
-to: df2.drop(df2.loc[df2.index > '2021-12-31 21:59:00'].index, inplace=True)
-diwxnei ta teleutaia datetimes pou einai NaN logw eisagwghs ths Z sto df2
-to: df2.dropna() diwxnei ola ta pithana NaN stoixeia se kathe sthlh
-df.isnull().values.any() na tsekarw an egine patata edw..
-
-vriskw ta datetime indices opou exw NaN times ws exhs:
-index = df2['Z'].index[df2['Z'].apply(np.isnan)]
-
-** added 2022-10-29 **
-mhpws na kanw ton ypologismo ths zenitheias gwnias synarthsh? tha einai kai
-pio voliko gia thn enswmatwsh twn timwn ths sto df2..
-
-h DN einai ektimwmenh sta dedomena, den ypokeitai stous alegxous autous
-
-df2['BI'] = df2['DN'] * df2['m0']  # direct horizontal
-df2['ppl_dn'] = df2['Sa']
-df2['ppl_bi'] = df2['Sa'] * df2['m0']
-df2['erl_dn'] = df2['Sa'] * 0.95 * df2['m0']**0.2 + 10
-df2['erl_bi'] = df2['Sa'] * 0.95 * df2['m0']**1.2 + 10
-# DN plots
-plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_dn'][df2['Z']<80], s=0.001, c='r')
-plt.scatter(df2['Z'][df2['Z']<80], df2['erl_dn'][df2['Z']<80], s=0.001)
-plt.scatter(df2['Z'][df2['Z']<80], df2['DN'][df2['Z']<80], s=0.001, c='k')
-plt.title('DNI')
-plt.xlabel('Zenith Angle [°]')
-plt.ylabel('Irradiance [$W/m^2$]')
-plt.show()
-# BI plots  # mporei na mhn xreiazontai??
-plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_bi'][df2['Z']<80], s=0.001, c='r')
-plt.scatter(df2['Z'][df2['Z']<80], df2['erl_bi'][df2['Z']<80], s=0.001)
-plt.scatter(df2['Z'][df2['Z']<80], df2['BI'][df2['Z']<80], s=0.001, c='k')
-plt.title('BI (=DNcosZ)')
-plt.xlabel('Zenith Angle [°]')
-plt.ylabel('Irradiance [$W/m^2$]')
-plt.show()
-
-** added 2022-10-30 **
-
-df2.loc[((df2['flag']>-1) & (df2['flag']<1)) & (df2['GH']>df2['erl_gh']), 'flag'] = 2
-df2.loc[(df2['flag']>-1) & (df2['flag']<1) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
-
-** added 2022-11-08 **
-
-# diafores vlakeis graphs akolouthoun
-# plotting of GHI and SUMW values
-
-# values in the same graph
-# versus time (the index)
-plt.scatter(df2.index[df2['Z']<80], df2['GH'][df2['Z']<80], s=0.005, c='k')
-plt.scatter(df2.index[df2['Z']<80], df2['sumw'][df2['Z']<80], s=0.005, c='r')
-plt.title('GHI & DNcosZ+DIF')
-plt.ylabel('Irradiance [$W/m^2$]')
-plt.legend(['GHI', 'DNcosZ+DIF'], markerscale=100, loc='upper right')
-plt.show()
-# versus the zenith angle
-plt.scatter(df2['Z'][df2['Z']<80], df2['GH'][df2['Z']<80], s=0.002, c='k')
-plt.scatter(df2['Z'][df2['Z']<80], df2['sumw'][df2['Z']<80], s=0.002, c='r')
-plt.title('GHI & DNcosZ+DIF')
-plt.ylabel('Irradiance [$W/m^2$]')
-plt.xlabel('Zenith Angle [°]')
-plt.legend(['GHI', 'DNcosZ+DIF'], markerscale=150, loc='upper right')
-plt.show()
-
-# as a difference (GHI-SUMW)
-# versus time (the index)
-plt.scatter(df2.index[df2['Z']<80],
-            (df2['GH'][df2['Z']<80]-df2['sumw'][df2['Z']<80]), s=0.005, c='k')
-plt.hlines(y=0, xmin=df2.index.min(),
-           xmax=df2.index.max(), color='r')
-plt.title('GHI-SUMW')
-plt.ylabel('GHI-SUMW Difference [$W/m^2$]')
-plt.show()
-# versus the zenith angle
-plt.scatter(df2['Z'][df2['Z']<80],
-            (df2['GH'][df2['Z']<80]-df2['sumw'][df2['Z']<80]), s=0.005, c='k')
-plt.hlines(y=0, xmin=10, xmax=85, color='r')
-plt.title('GHI-SUMW')
-plt.ylabel('GHI-SUMW Difference [$W/m^2$]')
-plt.xlabel('Zenith Angle [°]')
-plt.show()
-
-plt.scatter(df2.index[df2['flag']==0], df2['GH'][df2['flag']==0], s=0.005, c='k')
-plt.show()
-'''
+print('\n\nDone.')
