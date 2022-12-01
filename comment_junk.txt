@@ -123,4 +123,50 @@ plt.show()
 
 plt.scatter(df2.index[df2['flag']==0], df2['GH'][df2['flag']==0], s=0.005, c='k')
 plt.show()
+
+** added 2022-11-21 **
+
+#%% Climatological Limits Tests (QC4)
+
+print('Preparing QC4 figures...')
+
+# GH rejection rate visualization
+reject_gh=[]
+i_list=[]
+for i in range(120, -5, -5):
+    df2['cll_gh'] = df2['Sa'] * (i/100) * df2['m0']**1.2 + 50
+    reject_gh.append(100*len(df2['GH'][(df2['GH']>df2['cll_gh'])&(df2['flag']!=-1)])/ \
+                     len(df2.index[df2['flag']!=-1]))
+    i_list.append(i/100)
+    
+plt.scatter(i_list, reject_gh, marker='+', c='k')
+#plt.yscale('log')
+plt.title('Rejection Rate for GHI')
+plt.ylabel('Rejection Percentage')
+plt.xlabel('Climatological Limits Coefficient - GHI')
+plt.show()
+
+reject_gh = np.transpose(np.array([i_list, reject_gh]))
+
+# DIF rejection rate visualization
+reject_dif=[]
+j_list=[]
+for j in range(75, -5, -5):
+    df2['cll_dif'] = df2['Sa'] * (j/100) * df2['m0']**1.2 + 30
+    reject_dif.append(100*len(df2['DIF'][(df2['DIF']>df2['cll_dif'])&(df2['flag']!=-1)])/ \
+                      len(df2.index[df2['flag']!=-1]))
+    j_list.append(j/100)
+    
+plt.scatter(j_list, reject_dif, marker='+', c='k')
+#plt.yscale('log')
+plt.title('Rejection Rate for DIF')
+plt.ylabel('Rejection Percentage')
+plt.xlabel('Climatological Limits Coefficient - DIF')
+plt.show()
+
+reject_dif = np.transpose(np.array([j_list, reject_dif]))
+
+# ta ekana epi 100 ta coefficients giati den evgaza akrh me float values sto
+# for loop, to idio pragma einai praktika kiolas
+# mporei na souloupwthei, kanontas tis kenes listes kena arrays eksarxhs??
 '''

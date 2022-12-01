@@ -43,7 +43,7 @@ ratio test, the diffuse ratio test, or both. Might change flag values to
 differentiate betwwen the 2 tests.
 
 The test results and limit values are all stored in dataframe "df2". It is then
-saved in a .csv file, as it is. The file's/dataframe's column names mean:
+saved in a .txt file, as it is. The file's/dataframe's column names mean:
 UTC: datetime in UTC -- corresponds to a datapoint
 DIF: diffuse horizontal irradiance
 GH: gobal horizontal irradiance
@@ -63,15 +63,21 @@ closr: closure ratio -- the closure equation is GH = DNcosZ+DIF, with the ratio
        here being closr=GH/(DNcosZ+DIF), calculated from the data
 dif_r: diffuse ratio -- DIF/GH
 
-In the .csv file, NaN values are stored as '', which are empty(?) spaces. That
-might be changed to something like 'NaN' or 'null', I'll see. It needs to be
-specified in what string/form Nan values are stored probably, maybe in the
-_stats file?? I ideally want columns to not be objects...
+In the __flagged.txt file, NaN values are stored as '', which are empty(?)
+spaces. That might be changed to something like 'NaN' or 'null', I'll see. It 
+needs to be specified in what string/form Nan values are stored probably, maybe 
+in the _stats file?? I ideally want columns to not be objects...
+Same happens in the __qc.csv file.
+
+The complete timeseries (from XXXX-01-01 00:00:00 to XXXX-12-31 23:59:00) is
+stored in a __qc.csv file. Only the timeseries, GHI & DIF values are stored in
+it. Timestamps that were missing in the original data have GH, DIF inserted as
+NaNs. Timestamps with flag == 1 have their GH, DIF values converted to NaNs.
+Timestamps with flag == -1 have their GH, DIF values converted to 0.
 
 @author: yiann
 """
 #%% Import Stuff
-
 
 import pandas as pd
 import numpy as np
@@ -91,6 +97,7 @@ lon_m = 30.0  # Greece is +2 hours from 0 (15deg per standard meridian)
 data_file = 'Solar_1min_2021.txt'
 dtr=pd.date_range(start='2021-1-1 00:00:00', end='2022-1-1 1:59:00',
                   freq='min')
+# 1min periods for 366 days + 2h UTC offset: 527160
 
 
 #%% Zenith Angle Calculation
@@ -204,7 +211,7 @@ plt.title('Global Horizontal Irradiance')
 plt.xlabel('Zenith Angle [°]')
 plt.ylabel('Irradiance [$W/m^2$]')
 plt.legend(['PPL', 'ERL', 'Data'], markerscale=150, loc='upper right')
-plt.savefig('qc1_2_ghi_vs_zenith.png')
+plt.savefig('qc1_2_ghi_vs_zenith__'+data_file[:-4]+'.png')
 plt.show()
 
 # DIF plots
@@ -215,7 +222,7 @@ plt.title('Diffuse Horizontal Irradiance')
 plt.xlabel('Zenith Angle [°]')
 plt.ylabel('Irradiance [$W/m^2$]')
 plt.legend(['PPL', 'ERL', 'Data'], markerscale=150, loc='upper right')
-plt.savefig('qc1_2_dif_vs_zenith.png')
+plt.savefig('qc1_2_dif_vs_zenith__'+data_file[:-4]+'.png')
 plt.show()
 
 # flag data that fail PPL test with 1
@@ -233,8 +240,8 @@ df2.loc[(df2['flag']==0) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
 df2['sumw'] = df2['DN'] * df2['m0'] + df2['DIF']
 df2['closr'] = df2['GH'] / df2['sumw']
 df2.loc[(df2['Z']>80) | (df2['sumw']<50), 'closr'] = np.nan
-
 # sto ena paper exei ghi>50 kai sto allo sumw>50, ti na valw? tha rwthsw..
+
 plt.scatter(df2['Z'], df2['closr'], s=0.002, c='k')
 # ratio limits visualization
 plt.hlines(y=1.08, xmin=10, xmax=75, color='r')
@@ -247,14 +254,16 @@ plt.ylim([0,2])  # so that extreme outliers dont affect the diagram..
 plt.title('Closure Ratio (GH/SUMW)')
 plt.xlabel('Zenith Angle [°]')
 plt.legend(['Data', 'Limits'], markerscale=150, loc='upper right')
-plt.savefig('qc3_ghi_sumw_ratio.png')
+plt.savefig('qc3_ghi_sumw_ratio__'+data_file[:-4]+'.png')
 plt.show()
 
+'''
 # flag data that fail closure ratio test with 3
 df2.loc[(df2['flag']==0) & (df2['Z']<75) &
         ((df2['closr']<0.92) | (df2['closr']>1.08)), 'flag'] = 3
 df2.loc[(df2['flag']==0) & (df2['Z']>75) &
         ((df2['closr']<0.85) | (df2['closr']>1.15)), 'flag'] = 3
+'''
 
 # diffuse ratio test
 df2['dif_r'] = df2['DIF'] / df2['GH']
@@ -268,59 +277,22 @@ plt.vlines(x=75, ymin=1.05, ymax=1.1, color='r')
 plt.ylim([0,1.4])
 plt.title('Diffuse Ratio (DIF/GH)')
 plt.xlabel('Zenith Angle [°]')
-plt.savefig('qc3_dif_ghi_ratio.png')
+plt.savefig('qc3_dif_ghi_ratio__'+data_file[:-4]+'.png')
 plt.show()
+
+#df2=df2.round(decimals=5)
+
+# flag data that fail closure ratio test with 3
+df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['closr']<0.92), 'flag'] = 3
+df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['closr']>1.08), 'flag'] = 3
+df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['closr']<0.85), 'flag'] = 3
+df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['closr']>1.15), 'flag'] = 3
 
 # flag remaining data that fail the diffuse ratio test with 3
 df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['dif_r']>1.05), 'flag'] = 3
-df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['dif_r']>1.1), 'flag'] = 3
-
-
-'''
-#%% Climatological Limits Tests (QC4)
-
-print('Preparing QC4 figures...')
-
-# GH rejection rate visualization
-reject_gh=[]
-i_list=[]
-for i in range(120, -5, -5):
-    df2['cll_gh'] = df2['Sa'] * (i/100) * df2['m0']**1.2 + 50
-    reject_gh.append(100*len(df2['GH'][(df2['GH']>df2['cll_gh'])&(df2['flag']!=-1)])/ \
-                     len(df2.index[df2['flag']!=-1]))
-    i_list.append(i/100)
-    
-plt.scatter(i_list, reject_gh, marker='+', c='k')
-#plt.yscale('log')
-plt.title('Rejection Rate for GHI')
-plt.ylabel('Rejection Percentage')
-plt.xlabel('Climatological Limits Coefficient - GHI')
-plt.show()
-
-reject_gh = np.transpose(np.array([i_list, reject_gh]))
-
-# DIF rejection rate visualization
-reject_dif=[]
-j_list=[]
-for j in range(75, -5, -5):
-    df2['cll_dif'] = df2['Sa'] * (j/100) * df2['m0']**1.2 + 30
-    reject_dif.append(100*len(df2['DIF'][(df2['DIF']>df2['cll_dif'])&(df2['flag']!=-1)])/ \
-                      len(df2.index[df2['flag']!=-1]))
-    j_list.append(j/100)
-    
-plt.scatter(j_list, reject_dif, marker='+', c='k')
-#plt.yscale('log')
-plt.title('Rejection Rate for DIF')
-plt.ylabel('Rejection Percentage')
-plt.xlabel('Climatological Limits Coefficient - DIF')
-plt.show()
-
-reject_dif = np.transpose(np.array([j_list, reject_dif]))
-
-# ta ekana epi 100 ta coefficients giati den evgaza akrh me float values sto
-# for loop, to idio pragma einai praktika kiolas
-# mporei na souloupwthei, kanontas tis kenes listes kena arrays eksarxhs??
-'''
+df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['dif_r']>1.10), 'flag'] = 3
+# note: data that are already flagged for not passing closure ratio test are
+#       not checked by diffuse ratio test, this might need change
 
 
 # %% Test Plots
@@ -335,7 +307,7 @@ plt.scatter(df2.index[df2['Z']<80], df2['GH'][df2['Z']<80], s=0.005, c='k')
 plt.title('GHI')
 plt.ylabel('Irradiance [$W/m^2$]')
 plt.legend(['PPL', 'ERL', 'Data'], markerscale=80, loc='upper right')
-plt.savefig('ghi_vs_time.png')
+plt.savefig('ghi_vs_time__'+data_file[:-4]+'.png')
 plt.show()
 
 #plt.hist(df2['GH'][df2['Z']<80], bins=60, log=True, color='k')
@@ -344,7 +316,7 @@ plt.show()
 plt.scatter(df2.index[df2['Z']<80], df2['DN'][df2['Z']<80], s=0.02, c='k')
 plt.title('DNI')
 plt.ylabel('Irradiance [$W/m^2$]')
-plt.savefig('dni_vs_time.png')
+plt.savefig('dni_vs_time__'+data_file[:-4]+'.png')
 plt.show()
 
 #plt.hist(df2['DN'][df2['Z']<80], bins=50, log=True, color='k')
@@ -357,7 +329,7 @@ plt.scatter(df2.index[df2['Z']<80], df2['DIF'][df2['Z']<80], s=0.005, c='k')
 plt.title('DIF')
 plt.ylabel('Irradiance [$W/m^2$]')
 plt.legend(['PPL', 'ERL', 'Data'], markerscale=80, loc='upper right')
-plt.savefig('dif_vs_time.png')
+plt.savefig('dif_vs_time__'+data_file[:-4]+'.png')
 plt.show()
 
 #plt.hist(df2['DIF'][df2['Z']<80], bins=50, log=True, color='k')
@@ -376,10 +348,21 @@ print('\nSome pass/fail stats for', data_file[:-4] + ':',
       str(len(df2[df2['flag']>-1].index)),
       '\n\nDatapoints that fail test 1:',
       str(len(df2[df2['flag']==1].index)),
-      '\nDatapoints that pass test 1 but fail test 2:',
+      '\n\nDatapoints that pass test 1 but fail test 2:',
       str(len(df2[df2['flag']==2].index)),
-      '\nDatapoints that pass tests 1 & 2 but fail test 3:',
-      str(len(df2[df2['flag']==3].index))
+      '\n\nDatapoints that pass tests 1 & 2 but fail test 3:',
+      str(len(df2[df2['flag']==3].index)),
+      '\nOf those that fail test 3, these many fail in:',
+      '\n\tThe closure ratio test:',
+      str(len(df2[(df2['flag']==3) & (df2['Z']<75) &
+                  ((df2['closr']<0.92) | (df2['closr']>1.08))].index)+ \
+          len(df2[(df2['flag']==3) & (df2['Z']>75) &
+                  ((df2['closr']<0.85) | (df2['closr']>1.15))].index)),
+      '\n\tThe diffuse ratio test:',
+      str(len(df2[(df2['flag']==3) & (df2['Z']<75) &
+                  (df2['dif_r']>1.05)].index)+ \
+          len(df2[(df2['flag']==3) & (df2['Z']>75) &
+                  (df2['dif_r']>1.1)].index))
       )
 
 print('\n\nPlease wait for the exportation of the data & results.',
@@ -387,14 +370,9 @@ print('\n\nPlease wait for the exportation of the data & results.',
       '\nIt might take some time...'
       )
 
-# export the data to a text file
-df2.index=df2.index.tz_localize(None)
-df2=df2.round(decimals=3)
-df2.to_csv(data_file[:-4]+'_flagged.txt', index_label='UTC')
-
 # export the pass\fail stats about the data to a text file
-with open(data_file[:-4]+'_flagged_stats.txt', 'w') as stats_text:
-    print('\nSome pass/fail stats for', data_file[:-4] + ':',
+with open(data_file[:-4]+'__flagged_stats.txt', 'a') as stats_file:
+    print('\n\nSome pass/fail stats for', data_file[:-4] + ':',
           '\n\nTotal number of datapoints:',
           str(len(df2.index)),
           '\nTotal number of non-eligible datapoints:',
@@ -403,11 +381,78 @@ with open(data_file[:-4]+'_flagged_stats.txt', 'w') as stats_text:
           str(len(df2[df2['flag']>-1].index)),
           '\n\nDatapoints that fail test 1:',
           str(len(df2[df2['flag']==1].index)),
-          '\nDatapoints that pass test 1 but fail test 2:',
+          '\n\nDatapoints that pass test 1 but fail test 2:',
           str(len(df2[df2['flag']==2].index)),
-          '\nDatapoints that pass tests 1 & 2 but fail test 3:',
+          '\n\nDatapoints that pass tests 1 & 2 but fail test 3:',
           str(len(df2[df2['flag']==3].index)),
-          file=stats_text
+          '\nOf those that fail test 3, these many fail in:',
+          '\n\tThe closure ratio test:',
+          str(len(df2[(df2['flag']==3) & (df2['Z']<75) &
+                      ((df2['closr']<0.92) | (df2['closr']>1.08))].index)+ \
+              len(df2[(df2['flag']==3) & (df2['Z']>75) &
+                      ((df2['closr']<0.85) | (df2['closr']>1.15))].index)),
+          '\n\tThe diffuse ratio test:',
+          str(len(df2[(df2['flag']==3) & (df2['Z']<75) &
+                      (df2['dif_r']>1.05)].index)+ \
+              len(df2[(df2['flag']==3) & (df2['Z']>75) &
+                      (df2['dif_r']>1.1)].index)),
+          file=stats_file
           )
 
-print('\n\nDone.')
+# export the data to a text file
+df2.index=df2.index.tz_localize(None)
+df2=df2.round(decimals=3)
+#pd.set_option('display.precision', 3)
+df2.to_csv(data_file[:-4]+'__flagged.txt', index_label='UTC')
+
+# export a chronologicaly complete timeseries of the data
+# needs polishing for if there is no XXXX-12-31 23:59:00
+# all XXXX-01-01 00:00:00 to XXXX-21-31 23:59:00 timestamps must be contained
+# maybe with joining with a datataframe/datetimeindex?
+# but that will make the code pretty 'heavy' (it already is..)
+df3 = df2[['GH','DIF','flag']].asfreq(freq='1min')  # adds missing as NaNs
+df3.loc[df3['flag'] == -1, 'GH'] = 0
+df3.loc[df3['flag'] == -1, 'DIF'] = 0
+df3.loc[df3['flag'] == 1, 'GH'] = np.nan
+df3.loc[df3['flag'] == 1, 'DIF'] = np.nan
+df3 = df3.drop(columns=['flag'])
+df3.to_csv(data_file[:-4]+'__qc.csv', index_label='UTC')
+
+with open(data_file[:-4]+'__flagged_stats.txt', 'a') as stats_file:
+    print('\nNumber of missing timestamps:',
+          str(len(df3.index)-len(df2.index)),
+          file=stats_file
+          )
+    
+print('\n\nDone.')    
+'''
+# mlkies
+plt.scatter(df3.index[df3['GH']>0], df3['GH'][df3['GH']>0], s=0.005, c='k')
+plt.title('GHI')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.show()
+
+plt.scatter(df3.index[df3['DIF']>0], df3['DIF'][df3['DIF']>0], s=0.005, c='k')
+plt.title('DIF')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.show()
+'''
+'''
+WARNING
+rounding changes a bit the flagging & test results. Need to fix this.
+
+issue: rounding seems to change a bit the number of datapoints that pass/fail
+each test
+e.g. without rounding, 100990 fail closure ratio test
+     with 3 decimals rounding, 100484
+     with 4 decimals rounding, 100947
+     with 5 decimals rounding, 100989
+     
+the tests and stats are all done/taken with unrounded data in this code, but
+they are stored in the .csv file rounded
+running the tests/stats with rounded data produces slightly different stats
+
+this might be happening because i have put only the "<" or ">" condition, not
+the "=<" or ">=" condition for the tests, so the rounding towards the limits
+makes a datapoint evade flagging.
+'''
