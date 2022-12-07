@@ -1,0 +1,13 @@
+Solar_1min_2011.txt
+Solar_1min_2012.txt
+Solar_1min_2013.txt
+Solar_1min_2014.txt
+Solar_1min_2015.txt
+Solar_1min_2016.txt
+Solar_1min_2017.txt
+Solar_1min_2018.txt
+Solar_1min_2019.txt
+Solar_1min_2020.txt
+Solar_1min_2021.txt
+annual_files.zip
+Solar_1min_2021(1).zip
