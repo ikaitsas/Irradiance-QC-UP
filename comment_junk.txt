@@ -170,3 +170,21 @@ reject_dif = np.transpose(np.array([j_list, reject_dif]))
 # for loop, to idio pragma einai praktika kiolas
 # mporei na souloupwthei, kanontas tis kenes listes kena arrays eksarxhs??
 '''
+
+'''
+added **2022-12-3**
+# mlkies
+plt.scatter(df3.index[df3['GH']>0], df3['GH'][df3['GH']>0], s=0.005, c='k')
+plt.title('GHI')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.show()
+
+plt.scatter(df3.index[df3['DIF']>0], df3['DIF'][df3['DIF']>0], s=0.005, c='k')
+plt.title('DIF')
+plt.ylabel('Irradiance [$W/m^2$]')
+plt.show()
+'''
+
+** added 2022-12-5 **
+if type(df2.index) != pd.core.indexes.datetimes.DatetimeIndex:
+    df2.index=pd.to_datetime(df2.index.astype(str), errors='coerce')

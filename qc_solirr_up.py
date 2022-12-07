@@ -83,26 +83,51 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import pytz
-import seaborn as sns
+from seaborn import set_style
+from datetime import datetime, timedelta
 
-sns.set_style('whitegrid')  # vrhka to grid style tou paper lol
+set_style('whitegrid')  # vrhka to grid style tou paper lol
+
+
+'''  USER INPUT - START  '''
 
 # latitude (lat) and longitude (lon)
 lat = 38.29136389  # (>0 north & <0 south)
 lon = 21.78858333  # (>0 east & <0 west)
-# longitude of location's standard meridian (prime meridian at 0)
-lon_m = 30.0  # Greece is +2 hours from 0 (15deg per standard meridian)
 
-# import irradiance data and create datetimes for zenith angle calculation
-data_file = 'Solar_1min_2021.txt'
-dtr=pd.date_range(start='2021-1-1 00:00:00', end='2022-1-1 1:59:00',
-                  freq='min')
-# 1min periods for 366 days + 2h UTC offset: 527160
+# location's hourly offset from prime merindian (h_off=0 there - negative west)
+h_off = 2
+local_tz = 'Etc/GMT-2'  # check pytz module for more inputs
+
+# import the year that coresponds to the data (must be integer)
+data_year = 2014
+
+'''   USER INPUT - END   '''
+
+
+# configure which columns are imported from the data file
+cols_needed = [0, 4, 6, 8]  # used for read_csv: "use_cols" argument
+col_datetime = [0]  # used for read_csv: "index_col" argument
+col_names = ['DIF', 'GH', 'DN']  # which column is which type of irradiance
+
+closr_test = 'YES'
+if data_year < 2014:
+    closr_test = 'NO'
+    col_names.remove('DN')
+    cols_needed.remove(8)
 
 
 #%% Zenith Angle Calculation
 
 print('\nCalculating Z & importing the data...')
+
+# generate daterange for Z calculation
+dtr = pd.date_range(start=datetime(year=data_year, month=1, day=1),
+                    end=datetime(year=data_year+1, month=1, day=1) + \
+                        timedelta(minutes=60*h_off-1),
+                    freq='min')
+# the 60*h_off-1 is written that way because the start of next year is already
+# present in the end argument of pd.date_range
 
 # create datetime dataframe for specified year
 df=pd.DataFrame(dtr, columns=['Datetime'])
@@ -111,62 +136,65 @@ df=pd.DataFrame(dtr, columns=['Datetime'])
 # in the end, at the index, so it can be joined to the irradiance data
 
 df['Datetime'] = pd.to_datetime(df['Datetime'])
-# day count for the year
 df['Day Count'] = df['Datetime'].dt.dayofyear
 
-# local time (LT) calculation
-# number of hours in a day
+# local time (LT)
 df['Hours'] = df['Datetime'].dt.hour
-# number of minutes in an hour
 df['Minutes'] = df['Datetime'].dt.minute
-# LT in decimal format
-df['LT'] = df['Hours'] + df['Minutes'] / 60
+df['LT'] = df['Hours'] + df['Minutes'] / 60  # decimal format
 
-# equation (correction) of time in decimal format (ET Decimal)
+# equation (correction) of time in decimal format (ET - decimal format)
 df['beta'] = (360 / 364) * (df['Day Count'] - 81)
 df['ET'] = (9.87 * np.sin(np.deg2rad(2 * df['beta'])) - 7.53 * np.cos(np.deg2rad(df['beta']))
             - 1.5 * np.sin(np.deg2rad(df['beta']))) / 60
 
-# longitude correction (LC) calculation, in decimal hours format
+# longitude of location's standard meridian (prime meridian at 0)
+lon_m = 15.0 * h_off  # (15deg per standard meridian)
+# longitude correction (LC), in decimal hours format
 df['LC'] = ((-4) * (lon_m - lon)) / 60
 
-# true solar time (TST) calculation in decimal format
+# true solar time (TST) in decimal format
 df['TST'] = df['LT'] + df['ET'] + df['LC']
-# making negative values positive (alla allazei kai h stoixhsh se sxesh me thn mera?)
+# making negative values positive (for consistency's sake)
 df['TST'] = np.where(df['TST'] < 0, df['TST'] + 24, df['TST'])
 
-# hour angle calculation (h - in degrees)
+# hour angle (h - in degrees)
 df['h'] = (df['TST'] - 12) * 15
 
-# declination of the sun calculation (delta - in degrees)
+# declination of the (delta - in degrees)
 df['delta'] = 23.45 * np.sin(np.deg2rad((360 / 365) * (df['Day Count'] + 284)))
 
 # cozZ calculation - where Z is the zenith angle
 df['cosZ'] = np.sin(np.deg2rad(lat)) * np.sin(np.deg2rad(df['delta'])) + np.cos(np.deg2rad(lat)) * \
              np.cos(np.deg2rad(df['delta'])) * np.cos(np.deg2rad(df['h']))
 
-# zenith angle (Z - in degrees) calculation
+# zenith angle (Z - in degrees)
 df['Z'] = np.rad2deg(np.arccos(df['cosZ']))
 
 # making the index a UTC+00 Datetime (Datetime is in local time - EET/UTC+02)
 df.index = df['Datetime']
 df.index.name = 'Datetime UTC'
-grc_std = pytz.timezone('Etc/GMT-2')  # EET (UTC+02)
-utc = pytz.timezone('UCT')  # UTC+00
-df.index = df.index.tz_localize(grc_std).tz_convert(utc)
+df.index = df.index \
+    .tz_localize(pytz.timezone(local_tz)) \
+    .tz_convert(pytz.timezone('UCT'))
 
 
 #%% GHI, DNI, DIF, Sa and Zenith Angle Values Input
 
+# Irradiance types
 # Global Horizontal = GH
 # DIffuse Horizontal = DIF
 # Direct Normal = DN
-# Beam Irradiance = BI (BI=DNcosZ)
 
-# irradiance values input
-df2 = pd.read_csv(data_file, index_col=[0], usecols=[0, 4, 6, 8], sep=',',
-                  header=None, parse_dates=True, na_values='"NAN"')
-df2.columns = ['DIF', 'GH', 'DN']
+data_file = f'Solar_1min_{data_year}.txt'  # generate irradiance data file
+df2 = pd.read_csv(data_file, index_col=col_datetime, usecols=cols_needed,
+                  sep=',', header=None, parse_dates=True, na_values="NAN")
+df2.columns = col_names
+
+# check if df2.index is not datetimeindex, to avoid errors
+if df2.index.inferred_type != 'datetime64':
+    df2.index=pd.to_datetime(df2.index.astype(str), errors='coerce')
+    
 df2.index = df2.index.tz_localize('UTC')
 df2['flag'] = -1  # initialising test flags - reject all at first (flag==-1)
 df2.loc[(df2['GH']>0) & (df2['DIF']>0), 'flag'] = 0  # reject GH<0 or DIF<0
@@ -188,7 +216,8 @@ df2['Day Count'] = df2.index.dayofyear
 df2['Sa'] = 1366 * ( 1 + 0.033 * np.cos( np.deg2rad((360 * df2['Day Count'])/365)) )
 # or it can be set constant: (Sa=1366 W/m^2): df2['Sa'] = 1366
 
-df2 = df2.dropna(subset=['DIF', 'GH', 'DN'])  # Deletes NaN/missing values
+df2 = df2[df2.index.notnull()]  # deletes NaT indices
+df2 = df2.dropna(subset=col_names)  # Deletes NaN/missing values
 
 
 #%% Limit Tests (QC1 & QC2)
@@ -207,6 +236,7 @@ df2['erl_dif'] = df2['Sa'] * 0.75 * df2['m0']**1.2 + 30
 plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_gh'][df2['Z']<80], s=0.002, c='r')
 plt.scatter(df2['Z'][df2['Z']<80], df2['erl_gh'][df2['Z']<80], s=0.002)
 plt.scatter(df2['Z'][df2['Z']<80], df2['GH'][df2['Z']<80], s=0.002, c='k')
+plt.ylim([0,2125])
 plt.title('Global Horizontal Irradiance')
 plt.xlabel('Zenith Angle [°]')
 plt.ylabel('Irradiance [$W/m^2$]')
@@ -218,6 +248,7 @@ plt.show()
 plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_dif'][df2['Z']<80], s=0.002, c='r')
 plt.scatter(df2['Z'][df2['Z']<80], df2['erl_dif'][df2['Z']<80], s=0.002)
 plt.scatter(df2['Z'][df2['Z']<80], df2['DIF'][df2['Z']<80], s=0.002, c='k')
+plt.ylim([0,1300])
 plt.title('Diffuse Horizontal Irradiance')
 plt.xlabel('Zenith Angle [°]')
 plt.ylabel('Irradiance [$W/m^2$]')
@@ -237,25 +268,35 @@ df2.loc[(df2['flag']==0) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
 #%% Comparison Tests (QC3)
 
 # closure equation test
-df2['sumw'] = df2['DN'] * df2['m0'] + df2['DIF']
-df2['closr'] = df2['GH'] / df2['sumw']
-df2.loc[(df2['Z']>80) | (df2['sumw']<50), 'closr'] = np.nan
-# sto ena paper exei ghi>50 kai sto allo sumw>50, ti na valw? tha rwthsw..
+if closr_test == 'YES':
+    df2['sumw'] = df2['DN'] * df2['m0'] + df2['DIF']
+    df2['closr'] = df2['GH'] / df2['sumw']
+    df2.loc[(df2['Z']>80) | (df2['sumw']<50), 'closr'] = np.nan
+    # sto ena paper exei ghi>50 kai sto allo sumw>50, ti na valw? tha rwthsw..
 
-plt.scatter(df2['Z'], df2['closr'], s=0.002, c='k')
-# ratio limits visualization
-plt.hlines(y=1.08, xmin=10, xmax=75, color='r')
-plt.hlines(y=1.15, xmin=75, xmax=85, color='r')
-plt.vlines(x=75, ymin=1.08, ymax=1.15, color='r')
-plt.hlines(y=0.92, xmin=10, xmax=75, color='r')
-plt.hlines(y=0.85, xmin=75, xmax=85, color='r')
-plt.vlines(x=75, ymin=0.85, ymax=0.92, color='r')
-plt.ylim([0,2])  # so that extreme outliers dont affect the diagram..
-plt.title('Closure Ratio (GH/SUMW)')
-plt.xlabel('Zenith Angle [°]')
-plt.legend(['Data', 'Limits'], markerscale=150, loc='upper right')
-plt.savefig('qc3_ghi_sumw_ratio__'+data_file[:-4]+'.png')
-plt.show()
+    plt.scatter(df2['Z'], df2['closr'], s=0.002, c='k')
+    # ratio limits visualization
+    plt.hlines(y=1.08, xmin=10, xmax=75, color='r')
+    plt.hlines(y=1.15, xmin=75, xmax=85, color='r')
+    plt.vlines(x=75, ymin=1.08, ymax=1.15, color='r')
+    plt.hlines(y=0.92, xmin=10, xmax=75, color='r')
+    plt.hlines(y=0.85, xmin=75, xmax=85, color='r')
+    plt.vlines(x=75, ymin=0.85, ymax=0.92, color='r')
+    plt.ylim([0,2])  # so that extreme outliers dont affect the figure..
+    plt.title('Closure Ratio (GH/SUMW)')
+    plt.xlabel('Zenith Angle [°]')
+    plt.legend(['Data', 'Limits'], markerscale=150, loc='upper right')
+    plt.savefig('qc3_ghi_sumw_ratio__'+data_file[:-4]+'.png')
+    plt.show()
+    
+    # flag data that fail closure ratio test with 3
+    df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['closr']<0.92), 'flag'] = 3
+    df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['closr']>1.08), 'flag'] = 3
+    df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['closr']<0.85), 'flag'] = 3
+    df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['closr']>1.15), 'flag'] = 3
+else:
+    df2['closr'] = np.nan
+
 
 '''
 # flag data that fail closure ratio test with 3
@@ -264,7 +305,6 @@ df2.loc[(df2['flag']==0) & (df2['Z']<75) &
 df2.loc[(df2['flag']==0) & (df2['Z']>75) &
         ((df2['closr']<0.85) | (df2['closr']>1.15)), 'flag'] = 3
 '''
-
 # diffuse ratio test
 df2['dif_r'] = df2['DIF'] / df2['GH']
 df2.loc[(df2['Z']>80) | (df2['GH']<50), 'dif_r'] = np.nan
@@ -280,30 +320,21 @@ plt.xlabel('Zenith Angle [°]')
 plt.savefig('qc3_dif_ghi_ratio__'+data_file[:-4]+'.png')
 plt.show()
 
-#df2=df2.round(decimals=5)
-
-# flag data that fail closure ratio test with 3
-df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['closr']<0.92), 'flag'] = 3
-df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['closr']>1.08), 'flag'] = 3
-df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['closr']<0.85), 'flag'] = 3
-df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['closr']>1.15), 'flag'] = 3
-
 # flag remaining data that fail the diffuse ratio test with 3
 df2.loc[(df2['flag']==0) & (df2['Z']<75) & (df2['dif_r']>1.05), 'flag'] = 3
 df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['dif_r']>1.10), 'flag'] = 3
-# note: data that are already flagged for not passing closure ratio test are
-#       not checked by diffuse ratio test, this might need change
 
 
-# %% Test Plots
+# %% Timeseries Plots
 
-print('Plotting the timeseries of the data...')
+print('\nPlotting the timeseries of the data...')
 
 # plotting of irradiance data and limits versus time/date
 plt.scatter(df2.index[df2['Z']<80], df2['ppl_gh'][df2['Z']<80],
             s=0.001, c='r')
 plt.scatter(df2.index[df2['Z']<80], df2['erl_gh'][df2['Z']<80], s=0.001)
 plt.scatter(df2.index[df2['Z']<80], df2['GH'][df2['Z']<80], s=0.005, c='k')
+plt.ylim([0,2125])
 plt.title('GHI')
 plt.ylabel('Irradiance [$W/m^2$]')
 plt.legend(['PPL', 'ERL', 'Data'], markerscale=80, loc='upper right')
@@ -313,19 +344,21 @@ plt.show()
 #plt.hist(df2['GH'][df2['Z']<80], bins=60, log=True, color='k')
 #plt.show()
 
-plt.scatter(df2.index[df2['Z']<80], df2['DN'][df2['Z']<80], s=0.02, c='k')
-plt.title('DNI')
-plt.ylabel('Irradiance [$W/m^2$]')
-plt.savefig('dni_vs_time__'+data_file[:-4]+'.png')
-plt.show()
-
-#plt.hist(df2['DN'][df2['Z']<80], bins=50, log=True, color='k')
-#plt.show()
+if closr_test == 'YES':
+    plt.scatter(df2.index[df2['Z']<80], df2['DN'][df2['Z']<80], s=0.02, c='k')
+    plt.title('DNI')
+    plt.ylabel('Irradiance [$W/m^2$]')
+    #plt.savefig('dni_vs_time__'+data_file[:-4]+'.png')
+    plt.show()
+    
+    #plt.hist(df2['DN'][df2['Z']<80], bins=50, log=True, color='k')
+    #plt.show()
 
 plt.scatter(df2.index[df2['Z']<80], df2['ppl_dif'][df2['Z']<80],
             s=0.001, c='r')
 plt.scatter(df2.index[df2['Z']<80], df2['erl_dif'][df2['Z']<80], s=0.001)
 plt.scatter(df2.index[df2['Z']<80], df2['DIF'][df2['Z']<80], s=0.005, c='k')
+plt.ylim([0,1300])
 plt.title('DIF')
 plt.ylabel('Irradiance [$W/m^2$]')
 plt.legend(['PPL', 'ERL', 'Data'], markerscale=80, loc='upper right')
@@ -371,7 +404,35 @@ print('\n\nPlease wait for the exportation of the data & results.',
       )
 
 # export the pass\fail stats about the data to a text file
-with open(data_file[:-4]+'__flagged_stats.txt', 'a') as stats_file:
+with open(data_file[:-4]+'__flagged_stats.txt', 'w') as yearly_stats_file:
+    print('\n\nSome pass/fail stats for', data_file[:-4] + ':',
+          '\n\nTotal number of datapoints:',
+          str(len(df2.index)),
+          '\nTotal number of non-eligible datapoints:',
+          str(len(df2[df2['flag']==-1].index)),
+          '\nTotal number of tested datapoints:',
+          str(len(df2[df2['flag']>-1].index)),
+          '\n\nDatapoints that fail test 1:',
+          str(len(df2[df2['flag']==1].index)),
+          '\n\nDatapoints that pass test 1 but fail test 2:',
+          str(len(df2[df2['flag']==2].index)),
+          '\n\nDatapoints that pass tests 1 & 2 but fail test 3:',
+          str(len(df2[df2['flag']==3].index)),
+          '\nOf those that fail test 3, these many fail in:',
+          '\n\tThe closure ratio test:',
+          str(len(df2[(df2['flag']==3) & (df2['Z']<75) &
+                      ((df2['closr']<0.92) | (df2['closr']>1.08))].index)+ \
+              len(df2[(df2['flag']==3) & (df2['Z']>75) &
+                      ((df2['closr']<0.85) | (df2['closr']>1.15))].index)),
+          '\n\tThe diffuse ratio test:',
+          str(len(df2[(df2['flag']==3) & (df2['Z']<75) &
+                      (df2['dif_r']>1.05)].index)+ \
+              len(df2[(df2['flag']==3) & (df2['Z']>75) &
+                      (df2['dif_r']>1.1)].index)),
+          file=yearly_stats_file
+          )
+        
+with open(data_file[:-8]+'__all_years_summary.txt', 'a') as stats_file:
     print('\n\nSome pass/fail stats for', data_file[:-4] + ':',
           '\n\nTotal number of datapoints:',
           str(len(df2.index)),
@@ -410,7 +471,16 @@ df2.to_csv(data_file[:-4]+'__flagged.txt', index_label='UTC')
 # all XXXX-01-01 00:00:00 to XXXX-21-31 23:59:00 timestamps must be contained
 # maybe with joining with a datataframe/datetimeindex?
 # but that will make the code pretty 'heavy' (it already is..)
-df3 = df2[['GH','DIF','flag']].asfreq(freq='1min')  # adds missing as NaNs
+
+if df2.index[0] != (pd.to_datetime(f'{data_year}-1-1 00:00:00') or \
+                    pd.to_datetime(f'{data_year}-12-31 23:59:00')):
+    df3 = df2[['GH','DIF','flag']] \
+    .reindex(pd.date_range(f'{data_year}-1-1 00:00:00',
+                           f'{data_year}-12-31 23:59:00',
+                           freq='1min'), fill_value=np.nan)
+else:
+    df3 = df2[['GH','DIF','flag']].asfreq(freq='1min')
+
 df3.loc[df3['flag'] == -1, 'GH'] = 0
 df3.loc[df3['flag'] == -1, 'DIF'] = 0
 df3.loc[df3['flag'] == 1, 'GH'] = np.nan
@@ -418,25 +488,19 @@ df3.loc[df3['flag'] == 1, 'DIF'] = np.nan
 df3 = df3.drop(columns=['flag'])
 df3.to_csv(data_file[:-4]+'__qc.csv', index_label='UTC')
 
-with open(data_file[:-4]+'__flagged_stats.txt', 'a') as stats_file:
-    print('\nNumber of missing timestamps:',
+with open(data_file[:-4]+'__flagged_stats.txt', 'a') as yearly_stats_file:
+    print('\nNumber of timestamps with missing values:',
+          str(len(df3.index)-len(df2.index)),
+          file=yearly_stats_file
+          )
+    
+with open(data_file[:-8]+'__all_years_summary.txt', 'a') as stats_file:
+    print('\nNumber of timestamps with missing values:',
           str(len(df3.index)-len(df2.index)),
           file=stats_file
           )
-    
-print('\n\nDone.')    
-'''
-# mlkies
-plt.scatter(df3.index[df3['GH']>0], df3['GH'][df3['GH']>0], s=0.005, c='k')
-plt.title('GHI')
-plt.ylabel('Irradiance [$W/m^2$]')
-plt.show()
 
-plt.scatter(df3.index[df3['DIF']>0], df3['DIF'][df3['DIF']>0], s=0.005, c='k')
-plt.title('DIF')
-plt.ylabel('Irradiance [$W/m^2$]')
-plt.show()
-'''
+print('\n\nDone.')    
 '''
 WARNING
 rounding changes a bit the flagging & test results. Need to fix this.
