@@ -1,0 +1,11 @@
+2021 - 14 sthles
+2020 - 14 - kapoies metrhseis den exoun perastei kala (pollaples metrhseis sthn idia grammh sto .txt arxeio)
+2019 - 14
+2018 - 14 - kapoia "datetimes" den einai parsable; (den mporei h string datatime sthlh na metatrapoun se morfh datetime xwris 'coerce')
+2017 - 14
+2016 - 14
+2015 - 14
+2014 - 14
+2013 - 9 - leipei DN;  - oi GH, DIF sthles einai object/string; (akyro hthele "NAN" anti gia '"NAN"')
+2012 - 9 - leipei DN;  - oi GH, DIF sthles einai object/string; (akyro hthele "NAN" anti gia '"NAN"')
+2011 - 9 - leipei DN;  - exei timestamp count prin tis times alla oxi station code;

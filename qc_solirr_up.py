@@ -100,7 +100,18 @@ h_off = 2
 local_tz = 'Etc/GMT-2'  # check pytz module for more inputs
 
 # import the year that coresponds to the data (must be integer)
-data_year = 2014
+data_year = 2017
+
+# import the conversion coefficients of the pyranometers
+coeff_dif = 1000 / 8.64
+coeff_ghi = 1000 / 8.63
+
+# if the full quality control precedure data are needed, set as 'YES':
+all_data_needed = 'NO'  # anything else for if not needed
+# warning - exporting the full quality control dataset is slow
+
+# Z threshhold above which values get automatically rejected:
+z_thresh = 80
 
 '''   USER INPUT - END   '''
 
@@ -112,7 +123,7 @@ col_names = ['DIF', 'GH', 'DN']  # which column is which type of irradiance
 
 closr_test = 'YES'
 if data_year < 2014:
-    closr_test = 'NO'
+    closr_test = 'NO'  # for 2011 to 2013 there are no data for DNI
     col_names.remove('DN')
     cols_needed.remove(8)
 
@@ -201,12 +212,12 @@ df2.loc[(df2['GH']>0) & (df2['DIF']>0), 'flag'] = 0  # reject GH<0 or DIF<0
 df2.loc[df2['GH']<0, 'GH'] = 0  # make negative voltage values zero
 df2.loc[df2['DIF']<0, 'DIF'] = 0
 # maybe this has to be done to DN too??
-df2['DIF'] = df2['DIF'] * 1000 / 8.64  # Converts mV to W/m^2
-df2['GH'] = df2['GH'] * 1000 / 8.63
+df2['DIF'] = df2['DIF'] * coeff_dif  # Converts mV to W/m^2
+df2['GH'] = df2['GH'] * coeff_ghi
 
 df2 = df2.join(df['Z'])  # left join is default
 df2['m0'] = np.cos(np.deg2rad(df2['Z'])).clip(lower=0)  # m0=cosZ>=0
-df2.loc[df2['Z']>80, 'flag'] = -1  # flag == -1 for Z>80
+df2.loc[df2['Z']>z_thresh, 'flag'] = -1  # flag == -1 for Z>80
 
 # drop duplicate datetimes (pref. after join operations)
 df2=df2[~df2.index.duplicated(keep='first')]
@@ -231,11 +242,19 @@ df2['ppl_dif'] = df2['Sa'] * 0.95 * df2['m0']**1.2 + 50
 df2['erl_gh'] = df2['Sa'] * 1.2 * df2['m0']**1.2 + 50
 df2['erl_dif'] = df2['Sa'] * 0.75 * df2['m0']**1.2 + 30
 
+# flag data that fail PPL test with 1
+df2.loc[(df2['flag']==0) & (df2['GH']>df2['ppl_gh']), 'flag'] = 1
+df2.loc[(df2['flag']==0) & (df2['DIF']>df2['ppl_dif']), 'flag'] = 1
+
+# flag data that pass PPL test but fail ERL test with 2
+df2.loc[(df2['flag']==0) & (df2['GH']>df2['erl_gh']), 'flag'] = 2
+df2.loc[(df2['flag']==0) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
+
 # plotting QC1 & QC2 (only values that correspond to Z<80 are shown)
 # GH plots
-plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_gh'][df2['Z']<80], s=0.002, c='r')
-plt.scatter(df2['Z'][df2['Z']<80], df2['erl_gh'][df2['Z']<80], s=0.002)
-plt.scatter(df2['Z'][df2['Z']<80], df2['GH'][df2['Z']<80], s=0.002, c='k')
+plt.scatter(df2['Z'][df2['Z']<z_thresh], df2['ppl_gh'][df2['Z']<z_thresh], s=0.002, c='r')
+plt.scatter(df2['Z'][df2['Z']<z_thresh], df2['erl_gh'][df2['Z']<z_thresh], s=0.002)
+plt.scatter(df2['Z'][df2['Z']<z_thresh], df2['GH'][df2['Z']<z_thresh], s=0.002, c='k')
 plt.ylim([0,2125])
 plt.title('Global Horizontal Irradiance')
 plt.xlabel('Zenith Angle [°]')
@@ -245,9 +264,9 @@ plt.savefig('qc1_2_ghi_vs_zenith__'+data_file[:-4]+'.png')
 plt.show()
 
 # DIF plots
-plt.scatter(df2['Z'][df2['Z']<80], df2['ppl_dif'][df2['Z']<80], s=0.002, c='r')
-plt.scatter(df2['Z'][df2['Z']<80], df2['erl_dif'][df2['Z']<80], s=0.002)
-plt.scatter(df2['Z'][df2['Z']<80], df2['DIF'][df2['Z']<80], s=0.002, c='k')
+plt.scatter(df2['Z'][df2['Z']<z_thresh], df2['ppl_dif'][df2['Z']<z_thresh], s=0.002, c='r')
+plt.scatter(df2['Z'][df2['Z']<z_thresh], df2['erl_dif'][df2['Z']<z_thresh], s=0.002)
+plt.scatter(df2['Z'][df2['Z']<z_thresh], df2['DIF'][df2['Z']<z_thresh], s=0.002, c='k')
 plt.ylim([0,1300])
 plt.title('Diffuse Horizontal Irradiance')
 plt.xlabel('Zenith Angle [°]')
@@ -256,14 +275,6 @@ plt.legend(['PPL', 'ERL', 'Data'], markerscale=150, loc='upper right')
 plt.savefig('qc1_2_dif_vs_zenith__'+data_file[:-4]+'.png')
 plt.show()
 
-# flag data that fail PPL test with 1
-df2.loc[(df2['flag']==0) & (df2['GH']>df2['ppl_gh']), 'flag'] = 1
-df2.loc[(df2['flag']==0) & (df2['DIF']>df2['ppl_dif']), 'flag'] = 1
-
-# flag data that pass PPL test but fail ERL test with 2
-df2.loc[(df2['flag']==0) & (df2['GH']>df2['erl_gh']), 'flag'] = 2
-df2.loc[(df2['flag']==0) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
-
 
 #%% Comparison Tests (QC3)
 
@@ -271,16 +282,16 @@ df2.loc[(df2['flag']==0) & (df2['DIF']>df2['erl_dif']), 'flag'] = 2
 if closr_test == 'YES':
     df2['sumw'] = df2['DN'] * df2['m0'] + df2['DIF']
     df2['closr'] = df2['GH'] / df2['sumw']
-    df2.loc[(df2['Z']>80) | (df2['sumw']<50), 'closr'] = np.nan
+    df2.loc[(df2['Z']>z_thresh) | (df2['sumw']<50), 'closr'] = np.nan
     # sto ena paper exei ghi>50 kai sto allo sumw>50, ti na valw? tha rwthsw..
 
     plt.scatter(df2['Z'], df2['closr'], s=0.002, c='k')
     # ratio limits visualization
     plt.hlines(y=1.08, xmin=10, xmax=75, color='r')
-    plt.hlines(y=1.15, xmin=75, xmax=85, color='r')
+    plt.hlines(y=1.15, xmin=75, xmax=z_thresh+5, color='r')
     plt.vlines(x=75, ymin=1.08, ymax=1.15, color='r')
     plt.hlines(y=0.92, xmin=10, xmax=75, color='r')
-    plt.hlines(y=0.85, xmin=75, xmax=85, color='r')
+    plt.hlines(y=0.85, xmin=75, xmax=z_thresh+5, color='r')
     plt.vlines(x=75, ymin=0.85, ymax=0.92, color='r')
     plt.ylim([0,2])  # so that extreme outliers dont affect the figure..
     plt.title('Closure Ratio (GH/SUMW)')
@@ -307,12 +318,12 @@ df2.loc[(df2['flag']==0) & (df2['Z']>75) &
 '''
 # diffuse ratio test
 df2['dif_r'] = df2['DIF'] / df2['GH']
-df2.loc[(df2['Z']>80) | (df2['GH']<50), 'dif_r'] = np.nan
+df2.loc[(df2['Z']>z_thresh) | (df2['GH']<50), 'dif_r'] = np.nan
 
 plt.scatter(df2['Z'], df2['dif_r'], s=0.002, c='k')
 # ratio limits visualization
 plt.hlines(y=1.05, xmin=10, xmax=75, color='r')
-plt.hlines(y=1.1, xmin=75, xmax=85, color='r')
+plt.hlines(y=1.1, xmin=75, xmax=z_thresh+5, color='r')
 plt.vlines(x=75, ymin=1.05, ymax=1.1, color='r')
 plt.ylim([0,1.4])
 plt.title('Diffuse Ratio (DIF/GH)')
@@ -330,10 +341,10 @@ df2.loc[(df2['flag']==0) & (df2['Z']>75) & (df2['dif_r']>1.10), 'flag'] = 3
 print('\nPlotting the timeseries of the data...')
 
 # plotting of irradiance data and limits versus time/date
-plt.scatter(df2.index[df2['Z']<80], df2['ppl_gh'][df2['Z']<80],
+plt.scatter(df2.index[df2['Z']<z_thresh], df2['ppl_gh'][df2['Z']<z_thresh],
             s=0.001, c='r')
-plt.scatter(df2.index[df2['Z']<80], df2['erl_gh'][df2['Z']<80], s=0.001)
-plt.scatter(df2.index[df2['Z']<80], df2['GH'][df2['Z']<80], s=0.005, c='k')
+plt.scatter(df2.index[df2['Z']<z_thresh], df2['erl_gh'][df2['Z']<z_thresh], s=0.001)
+plt.scatter(df2.index[df2['Z']<z_thresh], df2['GH'][df2['Z']<z_thresh], s=0.005, c='k')
 plt.ylim([0,2125])
 plt.title('GHI')
 plt.ylabel('Irradiance [$W/m^2$]')
@@ -345,7 +356,7 @@ plt.show()
 #plt.show()
 
 if closr_test == 'YES':
-    plt.scatter(df2.index[df2['Z']<80], df2['DN'][df2['Z']<80], s=0.02, c='k')
+    plt.scatter(df2.index[df2['Z']<z_thresh], df2['DN'][df2['Z']<z_thresh], s=0.02, c='k')
     plt.title('DNI')
     plt.ylabel('Irradiance [$W/m^2$]')
     #plt.savefig('dni_vs_time__'+data_file[:-4]+'.png')
@@ -354,10 +365,10 @@ if closr_test == 'YES':
     #plt.hist(df2['DN'][df2['Z']<80], bins=50, log=True, color='k')
     #plt.show()
 
-plt.scatter(df2.index[df2['Z']<80], df2['ppl_dif'][df2['Z']<80],
+plt.scatter(df2.index[df2['Z']<z_thresh], df2['ppl_dif'][df2['Z']<z_thresh],
             s=0.001, c='r')
-plt.scatter(df2.index[df2['Z']<80], df2['erl_dif'][df2['Z']<80], s=0.001)
-plt.scatter(df2.index[df2['Z']<80], df2['DIF'][df2['Z']<80], s=0.005, c='k')
+plt.scatter(df2.index[df2['Z']<z_thresh], df2['erl_dif'][df2['Z']<z_thresh], s=0.001)
+plt.scatter(df2.index[df2['Z']<z_thresh], df2['DIF'][df2['Z']<z_thresh], s=0.005, c='k')
 plt.ylim([0,1300])
 plt.title('DIF')
 plt.ylabel('Irradiance [$W/m^2$]')
@@ -404,7 +415,7 @@ print('\n\nPlease wait for the exportation of the data & results.',
       )
 
 # export the pass\fail stats about the data to a text file
-with open(data_file[:-4]+'__flagged_stats.txt', 'w') as yearly_stats_file:
+with open('flagged_stats__'+data_file[:-4]+'.txt', 'w') as yearly_stats_file:
     print('\n\nSome pass/fail stats for', data_file[:-4] + ':',
           '\n\nTotal number of datapoints:',
           str(len(df2.index)),
@@ -464,7 +475,9 @@ with open(data_file[:-8]+'__all_years_summary.txt', 'a') as stats_file:
 df2.index=df2.index.tz_localize(None)
 df2=df2.round(decimals=3)
 #pd.set_option('display.precision', 3)
-df2.to_csv(data_file[:-4]+'__flagged.txt', index_label='UTC')
+if all_data_needed == 'YES':
+    df2.to_csv(data_file[:-4]+'__flagged.txt', index_label='UTC')
+
 
 # export a chronologicaly complete timeseries of the data
 # needs polishing for if there is no XXXX-12-31 23:59:00
@@ -488,7 +501,7 @@ df3.loc[df3['flag'] == 1, 'DIF'] = np.nan
 df3 = df3.drop(columns=['flag'])
 df3.to_csv(data_file[:-4]+'__qc.csv', index_label='UTC')
 
-with open(data_file[:-4]+'__flagged_stats.txt', 'a') as yearly_stats_file:
+with open('flagged_stats__'+data_file[:-4]+'.txt', 'a') as yearly_stats_file:
     print('\nNumber of timestamps with missing values:',
           str(len(df3.index)-len(df2.index)),
           file=yearly_stats_file
