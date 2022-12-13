@@ -100,7 +100,7 @@ h_off = 2
 local_tz = 'Etc/GMT-2'  # check pytz module for more inputs
 
 # import the year that coresponds to the data (must be integer)
-data_year = 2017
+data_year = 2011
 
 # import the conversion coefficients of the pyranometers
 coeff_dif = 1000 / 8.64
@@ -476,7 +476,7 @@ df2.index=df2.index.tz_localize(None)
 df2=df2.round(decimals=3)
 #pd.set_option('display.precision', 3)
 if all_data_needed == 'YES':
-    df2.to_csv(data_file[:-4]+'__flagged.txt', index_label='UTC')
+    df2.to_csv('flagged__'+data_file[:-4]+'.txt', index_label='UTC')
 
 
 # export a chronologicaly complete timeseries of the data
@@ -533,3 +533,9 @@ this might be happening because i have put only the "<" or ">" condition, not
 the "=<" or ">=" condition for the tests, so the rounding towards the limits
 makes a datapoint evade flagging.
 '''
+
+
+#%% Testing
+
+df3['diaf']=df3['GH']-df3['DIF']
+df4=df3['diaf'][df3['diaf']<0]
